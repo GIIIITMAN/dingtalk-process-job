@@ -1,0 +1,18 @@
+{
+	"USEAPPKEY": true,
+	"DINGTALK": {
+		"DINGTALK_CORP_ID": "dingc53052cba5985f9d35c2f4657eb6378f",
+		"DINGTALK_APP_KEY": "dingywgfwln2yy2zmxqo",
+		"DINGTALK_APP_SECRET": "bXhqkMNDJeIAKjFDT6C2F8LQtUcY9I-kxhzJfCtPv4MHfVl7NEQTlvP-iqAjX2-H",
+		"DINGTALK_TOKEN": null,
+		"DINGTALK_AES_KEY": null,
+		"DINGTALK_CORP_SECRET": null
+	},
+	"DB": {
+		"HOST": "47.97.175.115",
+		"PORT": 3306,
+		"SCHEMA": "dev_bqs",
+		"USERNAME": "root",
+		"PASSWORD": "P1nec0n@t"
+	}
+}
