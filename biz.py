@@ -2,20 +2,19 @@
 import json
 from config import Config
 from client import Client
-from db import connection
+import db
 import constants
 
 useAppKey = Config().payload()["USEAPPKEY"]
-# sdkClient = Client(useAppKey).getInstance()
+sdkClient = Client(useAppKey).getInstance()
 
 def run():
 	print(useAppKey)
-	# print sdkClient
-	# print(connection)
+	print(sdkClient)
 	processCode = 'PROC-599D7A8F-6FE7-468E-A5AD-1B370DA70611'
-	bizData = loadBizData()
-	print(bizData['processCodes'])
-	# print(sdkClient.bpms.processinstance_list(processCode, 1544406815))
+	print(sdkClient.bpms.processinstance_list(processCode, 1544406815))
+	# bizData = loadBizData()
+	# print(bizData['processCodes'])
 	# print(query("select * from day_work"))
 
 def loadBizData():
@@ -25,7 +24,8 @@ def loadBizData():
 	return content
 
 def query(sql):
-	cursor = connection.cursor()
+	conn = db.Connection().getConnection()
+	cursor = conn.cursor()
 	try:
 		cursor.execute(sql)
 		row = cursor.fetchone()
@@ -38,7 +38,4 @@ def query(sql):
 		print(e)
 	finally:
 		cursor.close()
-
-def finish():
-	if connection is not None:
-		connection.close()
+		conn.close()
