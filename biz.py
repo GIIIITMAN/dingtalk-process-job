@@ -7,14 +7,14 @@ import constants
 
 useAppKey = Config().payload()["USEAPPKEY"]
 sdkClient = Client(useAppKey).getInstance()
+startTime = 1586044800
 
 def run():
 	print(useAppKey)
 	# print(sdkClient)
-	processCode = 'PROC-599D7A8F-6FE7-468E-A5AD-1B370DA70611' # 日工
-	response = sdkClient.bpms.processinstance_list(processCode, 1544406815)
-	# bizData = loadBizData()
-	# print(bizData['processCodes'])
+	# processCode = 'PROC-599D7A8F-6FE7-468E-A5AD-1B370DA70611' # 日工
+	# response = sdkClient.bpms.processinstance_list(processCode, 1544406815)
+	bizData = loadBizData()
 	
 	# start db operation
 	conn = db.Connection().getConnection()
@@ -24,7 +24,9 @@ def run():
 	# response = json.load(file)
 	# print(response)
 	# file.close()
-	mergeDayWork(conn, response)
+	for processCode in bizData["processCodes"]["dayWork"]:
+		response = sdkClient.bpms.processinstance_list(processCode, startTime)
+		mergeDayWork(conn, processCode, response)
 
 	conn.close()
 
@@ -51,7 +53,7 @@ def query(conn, sql):
 def isSuccess(data):
 	return (data["success"] and data["ding_open_errcode"] == 0)
 
-def mergeDayWork(conn, data):
+def mergeDayWork(conn, processCode, data):
 	"""columns sequence
 		daywork_id auto genrate
 		instance_id
@@ -93,7 +95,7 @@ def mergeDayWork(conn, data):
 								parseDatetime(process["create_time"]),
 								parseDatetime(process["finish_time"]) if "finish_time" in process else None,
 								process["originator_userid"],
-								process["originator_userid"],
+								process["originator_userid"], # user userid instead of username
 								# process["originator_username"] if "originator_username" in process else None,
 								process["originator_dept_id"])
 				workerList = []
@@ -117,6 +119,10 @@ def mergeDayWork(conn, data):
 			cursor.executemany(sql, insertData)
 		conn.commit()
 		cursor.close()
+		nextCur = data["next_cursor"] if "next_cursor" in data else None,
+		if nextCur is not None:
+			resp = sdkClient.bpms.processinstance_list(processCode, startTime, None, nextCur)
+			mergeDayWork(conn, processCode, resp)
 
 
 def parseDatetime(datetime):
