@@ -240,7 +240,7 @@ def mergeContractWork(conn, processCode, data):
 					if componentName == "工程项目编号、名称":
 						projectName = value
 					elif componentName == "金额（元）":
-						amount = float(value)
+						amount = float(value) if value is not None else 0.0
 					elif componentName == "工作面完成情况":
 						taskPerform = value
 					elif componentName == "各专业班组施工人员情况明细":
