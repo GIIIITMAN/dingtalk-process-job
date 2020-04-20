@@ -7,7 +7,7 @@ import constants
 import util
 
 useAppKey = Config().payload()["USEAPPKEY"]
-sdkClient = Client(useAppKey).getInstance()
+# sdkClient = Client(useAppKey).getInstance() # COMMENT OUT IF LOCAL
 startTime = 1586044800
 
 def run():
@@ -22,7 +22,7 @@ def run():
 	# db operation here
 	# print(query("select * from day_work"))
 
-	# local test
+	# local test ===========================================
 	# file = open("./test-data/single.json")
 	# response = json.load(file)
 	# print(response)
@@ -34,13 +34,38 @@ def run():
 	# file.close()
 	# mergeContractWork(conn, processCode, response)
 
+	# e059a59a-6d28-4f93-8ff7-0c03c332d2db
+	instId = "e059a59a-6d28-4f93-8ff7-0c03c332d2db"
+	# file = open("./test-data/pinst-dw.json")
+	# response = json.load(file)
+	# file.close()
+	# parseSingleDayWork(conn, instId, response)
+	file = open("./test-data/pinst-cw.json")
+	response = json.load(file)
+	file.close()
+	parseSingleContractWork(conn, instId, response)
+	# local end =============================================
+
+
+	#======================================================
 	# run on server
-	for processCode in bizData["processCodes"]["dayWork"]:
-		response = sdkClient.bpms.processinstance_list(processCode, startTime)
-		mergeDayWork(conn, processCode, response)
-	for processCode in bizData["processCodes"]["contractWork"]:
-		response = sdkClient.bpms.processinstance_list(processCode, startTime)
-		mergeContractWork(conn, processCode, response)
+	# recheck unloaded process first
+	# remainProcesses = []
+	# for remainProcess in remainProcesses:
+	# 	if remainProcess["type"] == "DAYWORK":
+	# 		response = sdkClient.bpms.processinstance_get(remainProcess["instance_id"])
+	# 		parseSingleDayWork(conn, remainProcess["instance_id"], response)
+	# 	elif remainProcess["type"] == "CONTRACTWORK":
+	# 		response = sdkClient.bpms.processinstance_get(remainProcess["instance_id"])
+	# 		parseSingleContractWork(conn, remainProcess["instance_id"], response)
+
+	# for processCode in bizData["processCodes"]["dayWork"]:
+	# 	response = sdkClient.bpms.processinstance_list(processCode, startTime)
+	# 	mergeDayWork(conn, processCode, response)
+	# for processCode in bizData["processCodes"]["contractWork"]:
+	# 	response = sdkClient.bpms.processinstance_list(processCode, startTime)
+	# 	mergeContractWork(conn, processCode, response)
+	#========================================================
 
 	conn.close()
 
@@ -263,7 +288,7 @@ def mergeContractWork(conn, processCode, data):
 		nextCurTup = data["result"]["next_cursor"] if "next_cursor" in data["result"] else None,
 		if nextCurTup is not None and len(nextCurTup) != 0 and nextCurTup[0] is not None:
 			resp = sdkClient.bpms.processinstance_list(processCode, startTime, None, nextCurTup[0])
-			mergeDayWork(conn, processCode, resp)
+			mergeContractWork(conn, processCode, resp)
 
 def parseContractWorker(worker):
 	buildingNo = None
@@ -313,3 +338,90 @@ def parseContractWorker(worker):
 			advMealAmt = float(value)
 	return (internalStuff, externalStuff, constructContent, buildingNo, unitNo, floorNo, houseNo, totalFloors, area, unitPrice, areaAmt, advAmt, advMealAmt, remainAmt)
 
+def parseSingleDayWork(conn, processInstId, data):
+	if data["status"] == "COMPLETED":
+		row = (processInstId,
+				data["business_id"],
+				data["title"],
+				data["status"],
+				data["result"],
+				parseDatetime(data["create_time"]),
+				parseDatetime(data["finish_time"]) if "finish_time" in data else None,
+				data["originator_userid"],
+				data["originator_userid"], # user userid instead of username
+				data["originator_dept_id"])
+		componentVoList = data["form_component_values"]["form_component_value_vo"]
+		workerList = []
+		for component in componentVoList:
+			componentName = component["name"]
+			if componentName == "工程项目编号、名称":
+				row = row + (component["value"],)
+			elif componentName == "各专业班组施工人员情况明细":
+				value = component["value"]
+				if isinstance(value, str):
+					workerList = json.loads(value)
+				else:
+					workerList = value
+		insertData = []
+		for worker in workerList:
+			print(worker)
+			insertData.append(row + parseSingleDayWorker(worker))
+		print(insertData)
+		# if len(insertData) != 0:
+		# 	cursor = conn.cursor()
+		# 	sql = "INSERT INTO day_work (instance_id,approval_no,title,approval_status,approval_result,create_time,finish_time,init_id,init_name,init_dept,project_name,building_no,internal_staff,external_staff,attendance_days,daywork_days,daywork_quota,daywork_amount,advance_meal_amount,construction_content) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+		# 	cursor.executemany(sql, insertData)
+		# 	conn.commit()
+		# 	cursor.close()
+
+def parseSingleDayWorker(worker):
+	return parseDayWorker(worker["rowValue"])
+
+def parseSingleContractWork(conn, processInstId, data):
+	if data["status"] == "COMPLETED":
+		row = (processInstId,
+				data["business_id"],
+				data["title"],
+				data["status"],
+				data["result"],
+				parseDatetime(data["create_time"]),
+				parseDatetime(data["finish_time"]) if "finish_time" in data else None,
+				data["originator_userid"],
+				data["originator_userid"], # user userid instead of username
+				data["originator_dept_id"])
+		workerList = []
+		projectName = ""
+		amount = 0.0
+		amountRMB = ""
+		taskPerform = None
+		componentVoList = data["form_component_values"]["form_component_value_vo"]
+		for component in componentVoList:
+			componentName = component["name"]
+			value = component["value"] if "value" in component else None
+			if componentName == "工程项目编号、名称":
+				projectName = value
+			elif componentName == "金额（元）":
+				amount = float(value) if value is not None else 0.0
+			elif componentName == "工作面完成情况":
+				taskPerform = value
+			elif componentName == "各专业班组施工人员情况明细":
+				value = component["value"]
+				if isinstance(value, str):
+					workerList = json.loads(value)
+				else:
+					workerList = value
+		row = row + (projectName, amount, util.amountToRMB(amount), taskPerform)
+		insertData = []
+		for worker in workerList:
+			print(worker)
+			insertData.append(row + parseSingleContractWorker(worker))
+		print(insertData)
+		# if len(insertData) != 0:
+		# 	cursor = conn.cursor()
+		# 	sql = "INSERT INTO contract_work (instance_id,approval_no,title,approval_status,approval_result,create_time,finish_time,init_id,init_name,init_dept,project_name,amount,amount_uppercase,task_performence,internal_staff,external_staff,construction_content,building_no,unit_no,floor_no,house_no,total_floors,area,unit_price,area_amount,advance_amount,advance_meal_amount,remain_amount) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+		# 	cursor.executemany(sql, insertData)
+		# 	conn.commit()
+		# 	cursor.close()
+
+def parseSingleContractWorker(worker):
+	return parseContractWorker(worker["rowValue"])
