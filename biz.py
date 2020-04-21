@@ -7,7 +7,7 @@ import constants
 import util
 
 useAppKey = Config().payload()["USEAPPKEY"]
-# sdkClient = Client(useAppKey).getInstance() # COMMENT OUT IF LOCAL
+sdkClient = Client(useAppKey).getInstance() # COMMENT OUT IF LOCAL
 startTime = 1586044800
 
 def run():
@@ -35,36 +35,36 @@ def run():
 	# mergeContractWork(conn, processCode, response)
 
 	# e059a59a-6d28-4f93-8ff7-0c03c332d2db
-	instId = "e059a59a-6d28-4f93-8ff7-0c03c332d2db"
+	# instId = "e059a59a-6d28-4f93-8ff7-0c03c332d2db"
 	# file = open("./test-data/pinst-dw.json")
 	# response = json.load(file)
 	# file.close()
 	# parseSingleDayWork(conn, instId, response)
-	file = open("./test-data/pinst-cw.json")
-	response = json.load(file)
-	file.close()
-	parseSingleContractWork(conn, instId, response)
+	# file = open("./test-data/pinst-cw.json")
+	# response = json.load(file)
+	# file.close()
+	# parseSingleContractWork(conn, instId, response)
 	# local end =============================================
 
 
 	#======================================================
 	# run on server
 	# recheck unloaded process first
-	# remainProcesses = []
-	# for remainProcess in remainProcesses:
-	# 	if remainProcess["type"] == "DAYWORK":
-	# 		response = sdkClient.bpms.processinstance_get(remainProcess["instance_id"])
-	# 		parseSingleDayWork(conn, remainProcess["instance_id"], response)
-	# 	elif remainProcess["type"] == "CONTRACTWORK":
-	# 		response = sdkClient.bpms.processinstance_get(remainProcess["instance_id"])
-	# 		parseSingleContractWork(conn, remainProcess["instance_id"], response)
+	remainProcesses = query(conn, "select id, instance_id, type from incomplete_process")
+	for remainProcess in remainProcesses:
+		if remainProcess["type"] == "DAYWORK":
+			response = sdkClient.bpms.processinstance_get(remainProcess["instance_id"])
+			parseSingleDayWork(conn, remainProcess["instance_id"], response)
+		elif remainProcess["type"] == "CONTRACTWORK":
+			response = sdkClient.bpms.processinstance_get(remainProcess["instance_id"])
+			parseSingleContractWork(conn, remainProcess["instance_id"], response)
 
-	# for processCode in bizData["processCodes"]["dayWork"]:
-	# 	response = sdkClient.bpms.processinstance_list(processCode, startTime)
-	# 	mergeDayWork(conn, processCode, response)
-	# for processCode in bizData["processCodes"]["contractWork"]:
-	# 	response = sdkClient.bpms.processinstance_list(processCode, startTime)
-	# 	mergeContractWork(conn, processCode, response)
+	for processCode in bizData["processCodes"]["dayWork"]:
+		response = sdkClient.bpms.processinstance_list(processCode, startTime)
+		mergeDayWork(conn, processCode, response)
+	for processCode in bizData["processCodes"]["contractWork"]:
+		response = sdkClient.bpms.processinstance_list(processCode, startTime)
+		mergeContractWork(conn, processCode, response)
 	#========================================================
 
 	conn.close()
@@ -85,6 +85,16 @@ def query(conn, sql):
 			result.append(row)
 			row = cursor.fetchone()
 		return result
+	except Error as e:
+		print(e)
+	finally:
+		cursor.close()
+
+def delete(conn, sql):
+	cursor = conn.cursor()
+	try:
+		cursor.execute(sql)
+		conn.commit()
 	except Error as e:
 		print(e)
 	finally:
@@ -122,6 +132,7 @@ def mergeDayWork(conn, processCode, data):
 		# print("valid data")
 		cursor = conn.cursor()
 		insertData = []
+		incompleteTuple = []
 		for process in voList:
 			componentVoList = process["form_component_values"]["form_component_value_vo"]
 			if process["status"] == "COMPLETED" and componentVoList is not None:
@@ -152,7 +163,12 @@ def mergeDayWork(conn, processCode, data):
 				# print(workerList)
 				for worker in workerList:
 					insertData.append(row + parseDayWorker(worker))
+			else:
+				incompleteTuple.append((process["process_instance_id"], "DAYWORK", process["status"], process["process_instance_result"]))
 		
+		if len(incompleteTuple) != 0:
+			addIncompleteProcess(conn, incompleteTuple)
+
 		if len(insertData) != 0:
 			# print(insertData)
 			sql = "INSERT INTO day_work (instance_id,approval_no,title,approval_status,approval_result,create_time,finish_time,init_id,init_name,init_dept,project_name,building_no,internal_staff,external_staff,attendance_days,daywork_days,daywork_quota,daywork_amount,advance_meal_amount,construction_content) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
@@ -278,6 +294,11 @@ def mergeContractWork(conn, processCode, data):
 				# print(workerList)
 				for worker in workerList:
 					insertData.append(row + parseContractWorker(worker))
+			else:
+				incompleteTuple.append((process["process_instance_id"], "DAYWORK", process["status"], process["process_instance_result"]))
+		
+		if len(incompleteTuple) != 0:
+			addIncompleteProcess(conn, incompleteTuple)
 		
 		if len(insertData) != 0:
 			# print(insertData)
@@ -367,12 +388,14 @@ def parseSingleDayWork(conn, processInstId, data):
 			print(worker)
 			insertData.append(row + parseSingleDayWorker(worker))
 		print(insertData)
-		# if len(insertData) != 0:
-		# 	cursor = conn.cursor()
-		# 	sql = "INSERT INTO day_work (instance_id,approval_no,title,approval_status,approval_result,create_time,finish_time,init_id,init_name,init_dept,project_name,building_no,internal_staff,external_staff,attendance_days,daywork_days,daywork_quota,daywork_amount,advance_meal_amount,construction_content) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
-		# 	cursor.executemany(sql, insertData)
-		# 	conn.commit()
-		# 	cursor.close()
+		if len(insertData) != 0:
+			cursor = conn.cursor()
+			sql = "INSERT INTO day_work (instance_id,approval_no,title,approval_status,approval_result,create_time,finish_time,init_id,init_name,init_dept,project_name,building_no,internal_staff,external_staff,attendance_days,daywork_days,daywork_quota,daywork_amount,advance_meal_amount,construction_content) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+			cursor.executemany(sql, insertData)
+			conn.commit()
+			cursor.close()
+		
+		delete(conn, "delete from incomplete_process where instance_id = " + processInstId)
 
 def parseSingleDayWorker(worker):
 	return parseDayWorker(worker["rowValue"])
@@ -416,12 +439,23 @@ def parseSingleContractWork(conn, processInstId, data):
 			print(worker)
 			insertData.append(row + parseSingleContractWorker(worker))
 		print(insertData)
-		# if len(insertData) != 0:
-		# 	cursor = conn.cursor()
-		# 	sql = "INSERT INTO contract_work (instance_id,approval_no,title,approval_status,approval_result,create_time,finish_time,init_id,init_name,init_dept,project_name,amount,amount_uppercase,task_performence,internal_staff,external_staff,construction_content,building_no,unit_no,floor_no,house_no,total_floors,area,unit_price,area_amount,advance_amount,advance_meal_amount,remain_amount) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
-		# 	cursor.executemany(sql, insertData)
-		# 	conn.commit()
-		# 	cursor.close()
+		if len(insertData) != 0:
+			cursor = conn.cursor()
+			sql = "INSERT INTO contract_work (instance_id,approval_no,title,approval_status,approval_result,create_time,finish_time,init_id,init_name,init_dept,project_name,amount,amount_uppercase,task_performence,internal_staff,external_staff,construction_content,building_no,unit_no,floor_no,house_no,total_floors,area,unit_price,area_amount,advance_amount,advance_meal_amount,remain_amount) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+			cursor.executemany(sql, insertData)
+			conn.commit()
+			cursor.close()
+
+		delete(conn, "delete from incomplete_process where instance_id = " + processInstId)
 
 def parseSingleContractWorker(worker):
 	return parseContractWorker(worker["rowValue"])
+
+
+def addIncompleteProcess(conn, processTupleList):
+	if len(processTupleList) != 0:
+		cursor = conn.cursor()
+		sql = "INSERT INTO incomplete_process (instance_id, process_type, checked_date, status, result) value (%s, %s, now(), %s, %s)"
+		cursor.executemany(sql, processTupleList)
+		conn.commit()
+		cursor.close()
