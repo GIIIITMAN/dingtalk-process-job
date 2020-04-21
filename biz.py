@@ -53,12 +53,12 @@ def run():
 	remainProcesses = query(conn, "select id, instance_id, process_type from incomplete_process")
 	if remainProcesses is not None:
 		for remainProcess in remainProcesses:
-			if remainProcess["process_type"] == "DAYWORK":
-				response = sdkClient.bpms.processinstance_get(remainProcess["instance_id"])
-				parseSingleDayWork(conn, remainProcess["instance_id"], response)
-			elif remainProcess["process_type"] == "CONTRACTWORK":
-				response = sdkClient.bpms.processinstance_get(remainProcess["instance_id"])
-				parseSingleContractWork(conn, remainProcess["instance_id"], response)
+			if remainProcess[2] == "DAYWORK":
+				response = sdkClient.bpms.processinstance_get(remainProcess[1])
+				parseSingleDayWork(conn, remainProcess[1], response)
+			elif remainProcess[2] == "CONTRACTWORK":
+				response = sdkClient.bpms.processinstance_get(remainProcess[1])
+				parseSingleContractWork(conn, remainProcess[1], response)
 
 	for processCode in bizData["processCodes"]["dayWork"]:
 		response = sdkClient.bpms.processinstance_list(processCode, startTime)
@@ -297,7 +297,7 @@ def mergeContractWork(conn, processCode, data):
 				for worker in workerList:
 					insertData.append(row + parseContractWorker(worker))
 			else:
-				incompleteTuple.append((process["process_instance_id"], "DAYWORK", process["status"], process["process_instance_result"]))
+				incompleteTuple.append((process["process_instance_id"], "CONTRACTWORK", process["status"], process["process_instance_result"]))
 		
 		if len(incompleteTuple) != 0:
 			addIncompleteProcess(conn, incompleteTuple)
