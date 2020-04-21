@@ -251,7 +251,7 @@ def mergeContractWork(conn, processCode, data):
 	voList = data["result"]["list"]["process_instance_top_vo"] if "process_instance_top_vo" in data["result"]["list"] else None
 	# print(voList)
 	if isSuccess(data) and voList is not None:
-		print("valid data")
+		# print("valid data")
 		cursor = conn.cursor()
 		insertData = []
 		for process in voList:
@@ -385,9 +385,9 @@ def parseSingleDayWork(conn, processInstId, data):
 					workerList = value
 		insertData = []
 		for worker in workerList:
-			print(worker)
+			# print(worker)
 			insertData.append(row + parseSingleDayWorker(worker))
-		print(insertData)
+		# print(insertData)
 		if len(insertData) != 0:
 			cursor = conn.cursor()
 			sql = "INSERT INTO day_work (instance_id,approval_no,title,approval_status,approval_result,create_time,finish_time,init_id,init_name,init_dept,project_name,building_no,internal_staff,external_staff,attendance_days,daywork_days,daywork_quota,daywork_amount,advance_meal_amount,construction_content) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
@@ -436,9 +436,9 @@ def parseSingleContractWork(conn, processInstId, data):
 		row = row + (projectName, amount, util.amountToRMB(amount), taskPerform)
 		insertData = []
 		for worker in workerList:
-			print(worker)
+			# print(worker)
 			insertData.append(row + parseSingleContractWorker(worker))
-		print(insertData)
+		# print(insertData)
 		if len(insertData) != 0:
 			cursor = conn.cursor()
 			sql = "INSERT INTO contract_work (instance_id,approval_no,title,approval_status,approval_result,create_time,finish_time,init_id,init_name,init_dept,project_name,amount,amount_uppercase,task_performence,internal_staff,external_staff,construction_content,building_no,unit_no,floor_no,house_no,total_floors,area,unit_price,area_amount,advance_amount,advance_meal_amount,remain_amount) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
