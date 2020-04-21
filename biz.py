@@ -50,14 +50,15 @@ def run():
 	#======================================================
 	# run on server
 	# recheck unloaded process first
-	remainProcesses = query(conn, "select id, instance_id, type from incomplete_process")
-	for remainProcess in remainProcesses:
-		if remainProcess["type"] == "DAYWORK":
-			response = sdkClient.bpms.processinstance_get(remainProcess["instance_id"])
-			parseSingleDayWork(conn, remainProcess["instance_id"], response)
-		elif remainProcess["type"] == "CONTRACTWORK":
-			response = sdkClient.bpms.processinstance_get(remainProcess["instance_id"])
-			parseSingleContractWork(conn, remainProcess["instance_id"], response)
+	remainProcesses = query(conn, "select id, instance_id, process_type from incomplete_process")
+	if remainProcesses is not None:
+		for remainProcess in remainProcesses:
+			if remainProcess["process_type"] == "DAYWORK":
+				response = sdkClient.bpms.processinstance_get(remainProcess["instance_id"])
+				parseSingleDayWork(conn, remainProcess["instance_id"], response)
+			elif remainProcess["process_type"] == "CONTRACTWORK":
+				response = sdkClient.bpms.processinstance_get(remainProcess["instance_id"])
+				parseSingleContractWork(conn, remainProcess["instance_id"], response)
 
 	for processCode in bizData["processCodes"]["dayWork"]:
 		response = sdkClient.bpms.processinstance_list(processCode, startTime)
@@ -85,7 +86,7 @@ def query(conn, sql):
 			result.append(row)
 			row = cursor.fetchone()
 		return result
-	except Error as e:
+	except Exception as e:
 		print(e)
 	finally:
 		cursor.close()
@@ -95,7 +96,7 @@ def delete(conn, sql):
 	try:
 		cursor.execute(sql)
 		conn.commit()
-	except Error as e:
+	except Exception as e:
 		print(e)
 	finally:
 		cursor.close()
@@ -254,6 +255,7 @@ def mergeContractWork(conn, processCode, data):
 		# print("valid data")
 		cursor = conn.cursor()
 		insertData = []
+		incompleteTuple = []
 		for process in voList:
 			componentVoList = process["form_component_values"]["form_component_value_vo"]
 			if process["status"] == "COMPLETED" and componentVoList is not None:
